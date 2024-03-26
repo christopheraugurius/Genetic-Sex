@@ -1,7 +1,4 @@
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Random;
+import java.util.*;
 
 public class GeneticAlgoritm {
     public static ArrayList<int[][]> generatePopulation(int jumlahPembangkit, int periode, int[] kebutuhanMaintanace, int[][] periodeMaintanace) {
@@ -31,72 +28,118 @@ public class GeneticAlgoritm {
 
     public static HashMap<int[][], Integer> fitnessCheck(ArrayList<int[][]> populasi, int[] kapasitasPembangkit, int cadanganListrik, int kebutuhanListrik) {
         HashMap<int[][], Integer> fitnessScore = new HashMap<>();
+        float mean = 0;
+
         for (int[][] pops: populasi) {
-            int score = 0;
+            int totalSelisih = 0;
 
             for (int i=0; i<pops[0].length; i++) {
-                int totalWatt = 0;
+                int total = 0;
                 for (int j=0; j<pops.length; j++) {
                     if (pops[j][i] == 0) {
-                        totalWatt += kapasitasPembangkit[j];
+                        total += kapasitasPembangkit[j];
                     }
                 }
 
-                if (totalWatt >= kebutuhanListrik) {
-                    score+= totalWatt;
-                } else if (totalWatt + cadanganListrik < kebutuhanListrik) {
-                    score = 0;
-                    break;
+                if ((cadanganListrik + kebutuhanListrik) - total >= 0) {
+                    totalSelisih += (cadanganListrik + kebutuhanListrik) - total;
                 }
+
             }
-
-
-            fitnessScore.put(pops, score);
+            fitnessScore.put(pops, totalSelisih);
+            mean += totalSelisih;
         }
+        System.out.println(mean / 50);
         return fitnessScore;
     }
 
-    public static void crossover(int[][] pop1, int[][] pop2) {
+    public static ArrayList<int[][]> crossover(HashMap<int[][], Integer> fitnessScore) {
+        HashMap<int[][], Integer> elite = elitism(fitnessScore);
+        HashMap<int[][], Integer> parentsHash = selection(fitnessScore);
+
+        ArrayList<int[][]> parentsList = new ArrayList<>(parentsHash.keySet());
         Random random = new Random();
-        int index1;
-        int indexRandom;
+        ArrayList<int[][]> childList = new ArrayList<>(elite.keySet());
 
-        for (int i=0; i<pop1[i].length; i++) {
-            index1 = Arrays.asList(pop1[i]).indexOf(0);
-            System.out.println(index1);
-            indexRandom = random.nextInt(12);
+        while (childList.size() < 50) {
+            int indexSwap = random.nextInt(7);
 
-            while (pop1[i][indexRandom] == 1) {
-                indexRandom = random.nextInt(12);
+            int child1 = random.nextInt(parentsList.size());
+            int[][] childArray1 = parentsList.get(child1).clone();
+
+            int child2 = random.nextInt(parentsList.size());
+            while (child1 == child2) {
+                child2 = random.nextInt(parentsList.size());
+
             }
 
-            pop1[i][indexRandom] = 1;
-            pop1[i][index1] = 0;
+            int[][] childArray2 = parentsList.get(child2).clone();
+
+            int[] temp = childArray1[indexSwap];
+            childArray1[indexSwap] = childArray2[indexSwap];
+            childArray2[indexSwap] = temp;
+
+            childList.add(childArray1);
+
+            if (!(childList.size() >= 49)) {
+                childList.add(childArray2);
+
+            }
         }
 
-        for (int i=0; i<pop2[i].length; i++) {
-            index1 = Arrays.binarySearch(pop2[i], 1);
-            indexRandom = random.nextInt(12);
+        return childList;
+    }
 
-            while (pop2[i][indexRandom] == 1) {
-                indexRandom = random.nextInt(12);
+    public static HashMap<int[][], Integer> elitism(HashMap<int[][], Integer> fitnessScore) {
+        ArrayList<int[][]> elite = new ArrayList<>(fitnessScore.keySet());
+        HashMap<int[][], Integer> eliteMap = new HashMap<>();
+
+        Collections.sort(elite, Comparator.comparingInt(fitnessScore::get));
+
+        for (int i = 0; i < 5; i++) {
+            eliteMap.put(elite.get(i), fitnessScore.get(elite.get(i)));
+            fitnessScore.remove(elite.get(i));
+        }
+
+        return eliteMap;
+    }
+
+    public static HashMap<int[][], Integer> selection(HashMap<int[][], Integer> fitnessScore) {
+        ArrayList<int[][]> listOfFitness = new ArrayList<>(fitnessScore.keySet());
+        HashMap<int[][], Integer> hasilTourney = new HashMap<>();
+
+        while (listOfFitness.size() > 0) {
+            Collections.shuffle(listOfFitness);
+            ArrayList<int[][]> tourneys = new ArrayList<>();
+
+            for (int i=0; i<5; i++) {
+                tourneys.add(listOfFitness.remove(0));
             }
 
-            pop2[i][indexRandom] = 1;
-            pop2[i][index1] = 0;
+            int smallest = fitnessScore.get(tourneys.get(0));
+            int smallestIndex = 0;
+            for (int i=1; i<tourneys.size(); i++) {
+                if (fitnessScore.get(tourneys.get(i)) < smallest) {
+                    smallestIndex = i;
+                    smallest = fitnessScore.get(tourneys.get(i));
+                }
+            }
+
+            hasilTourney.put(tourneys.get(smallestIndex), smallest);
         }
 
+        return hasilTourney;
     }
 
     public static void main(String[] args) {
         String rawData = "7 100 15\n" +
-                "1 21 2\n" +
-                "2 14 2\n" +
-                "3 37 1\n" +
-                "4 12 1\n" +
-                "5 10 1\n" +
-                "6 13 2\n" +
-                "7 27 1";   //FileRead.Read("test.txt");
+                "1 20 2\n" +
+                "2 15 2\n" +
+                "3 35 1\n" +
+                "4 40 1\n" +
+                "5 15 1\n" +
+                "6 15 2\n" +
+                "7 10 1";   //FileRead.Read("test.txt");
         String[] data = rawData.split("\n");
 
         int jumlahPembangkit = Integer.parseInt(data[0].split(" ")[0]);
@@ -116,16 +159,15 @@ public class GeneticAlgoritm {
             kapasitasPembangkit[i - 1] = Integer.parseInt(data[i].split(" ")[1]);
         }
 
+
         ArrayList<int[][]> populasi = generatePopulation(jumlahPembangkit, periode, kebutuhanMaintanance, periodeMaintanace);
-        fitnessCheck(populasi, kapasitasPembangkit, cadanganListrik, kebutuhanListrik);
 
-        System.out.println(Arrays.deepToString(populasi.get(0)));
-        System.out.println(Arrays.deepToString(populasi.get(1)));
+        for (int i=0 ;i<100; i++) {
 
-        crossover(populasi.get(0), populasi.get(1));
+            HashMap<int[][], Integer> hasilFitness = fitnessCheck(populasi, kapasitasPembangkit, cadanganListrik, kebutuhanListrik);
 
-        System.out.println(Arrays.deepToString(populasi.get(0)));
-        System.out.println(Arrays.deepToString(populasi.get(1)));
-
+            populasi = crossover(hasilFitness);
+            System.out.println("---------");
+        }
     }
 }
